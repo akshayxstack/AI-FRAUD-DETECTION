@@ -30,7 +30,7 @@ function riskClass(score: number) {
 }
 
 export function AnalyticsDashboard() {
-  const { analysis, totalTransactions, suspiciousTransactionsCount, loading, error, refresh, lastAnalyzedAt } = useData();
+  const { analysis, totalTransactions, suspiciousTransactionsCount, loading, error, refresh, lastAnalyzedAt, clear } = useData();
 
   if (loading) {
     return (
@@ -66,7 +66,7 @@ export function AnalyticsDashboard() {
           <h2 className="text-2xl font-bold">Fraud Analytics Dashboard</h2>
           <p className="text-muted-foreground">Comprehensive fraud detection and prevention analytics</p>
         </div>
-        <Button onClick={refresh}>Refresh</Button>
+        <Button onClick={clear}>Refresh</Button>
       </div>
 
       <Card>
@@ -173,11 +173,22 @@ export function AnalyticsDashboard() {
         </CardHeader>
         <CardContent className="flex justify-center">
           <PieChart width={300} height={300}>
-            <Pie data={pieData} dataKey="value" outerRadius={100}>
+            <Pie data={pieData} dataKey="value" outerRadius={100} innerRadius={60} stroke="#0f1722" strokeWidth={2}>
               <Cell fill="#ef4444" />
               <Cell fill="#22c55e" />
             </Pie>
-            <Tooltip />
+            <Tooltip
+              formatter={(value: number, name: string) => [value, name]}
+              contentStyle={{
+                background: '#0f1722',
+                border: '1px solid #1f2937',
+                borderRadius: 12,
+                padding: '8px 12px',
+                color: '#e5eef8',
+              }}
+              itemStyle={{ color: '#e5eef8' }}
+              labelStyle={{ color: '#aab7c6' }}
+            />
           </PieChart>
         </CardContent>
       </Card>

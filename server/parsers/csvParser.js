@@ -26,6 +26,7 @@ function normalizeCSVRow(row) {
   );
 
   const amountKey = keys.find((k) => k.toLowerCase().includes('amount'));
+  const fraudKey = keys.find((k) => /fraud|label|target|class|is_fraud/i.test(k));
 
   let amount = 0;
 
@@ -38,11 +39,16 @@ function normalizeCSVRow(row) {
   }
 
   const description = descKey ? row[descKey] : JSON.stringify(row);
+  const fraudValue = fraudKey ? row[fraudKey] : undefined;
 
   return {
     date: row[dateKey] || '',
     description,
     amount,
+    fraudLabel: typeof fraudValue === 'string'
+      ? ['1', 'true', 'yes', 'fraud', 'fraudulent'].includes(fraudValue.trim().toLowerCase())
+      : fraudValue === 1 || fraudValue === true,
+    raw: row,
   };
 }
 

@@ -1,10 +1,16 @@
 import ExcelJS from 'exceljs';
 
 function normalizeExcelRow(row) {
+  const fraudValue = row.fraud ?? row.Fraud ?? row.fraudLabel ?? row.FraudLabel ?? row.label ?? row.Label;
+
   return {
     date: row.date || row.Date,
     description: row.description || row.Description,
     amount: Number(row.amount || row.Amount || 0),
+    fraudLabel: typeof fraudValue === 'string'
+      ? ['1', 'true', 'yes', 'fraud', 'fraudulent'].includes(fraudValue.trim().toLowerCase())
+      : fraudValue === 1 || fraudValue === true,
+    raw: row,
   };
 }
 

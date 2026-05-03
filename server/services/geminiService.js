@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { summarizeForAi } from './analysisEngine.js';
 
 function getClient() {
   return new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -17,6 +18,82 @@ function getModelCandidates() {
   return [...new Set([modelName, ...envFallbackModels, ...DEFAULT_FALLBACK_MODELS])];
 }
 
+function stripCodeFences(text) {
+  return String(text || '')
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/i, '')
+    .trim();
+}
+
+function extractJson(text) {
+  const cleaned = stripCodeFences(text);
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error('Invalid AI response format');
+  }
+
+  return cleaned.slice(start, end + 1);
+}
+
+function buildAnalysisPrompt(analysis) {
+  const aiContext = summarizeForAi(analysis);
+
+  return `
+You are a financial fraud detection AI.
+
+Analyze the suspicious transaction set and return ONLY JSON.
+
+Context:
+${JSON.stringify(aiContext)}
+
+Return STRICT JSON:
+
+{
+  "summary": "short explanation",
+  "patterns": ["pattern1", "pattern2"],
+  "recommendations": ["action1", "action2"],
+  "suspiciousTransactions": [
+    {
+      "date": "",
+      "description": "",
+      "amount": number,
+      "reason": ""
+    }
+  ]
+}
+
+DO NOT return text outside JSON.
+`;
+}
+
+function buildChatPrompt({ analysis, message }) {
+  const aiContext = summarizeForAi(analysis);
+
+  return `
+You are a premium fintech fraud analyst chat assistant.
+
+Use the current fraud analysis context to answer the user in concise JSON.
+
+Context:
+${JSON.stringify(aiContext)}
+
+User question:
+${message}
+
+Return STRICT JSON:
+
+{
+  "reply": "brief helpful response",
+  "highlights": ["highlight1", "highlight2"],
+  "nextSteps": ["step1", "step2"]
+}
+
+Only use the provided analysis context. Do not invent transaction details.
+`;
+}
+
 export async function analyzeTransactions(transactions) {
   if (!process.env.GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY not loaded');
@@ -24,41 +101,7 @@ export async function analyzeTransactions(transactions) {
 
   const genAI = getClient();
 
-  // Limit input (important)
-  const sample = transactions.slice(0, 200);
-
-  const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
-
-  const prompt = `
-You are a financial fraud detection AI.
-
-Analyze the following transaction data and return ONLY JSON.
-
-Transactions:
-${JSON.stringify(sample)}
-
-Total Transactions: ${transactions.length}
-Total Amount: ${totalAmount}
-
-Return STRICT JSON:
-
-{
-"riskScore": number (0-100),
-"summary": "short explanation",
-"suspiciousTransactions": [
-{
-"date": "",
-"description": "",
-"amount": number,
-"reason": ""
-}
-],
-"patterns": ["pattern1", "pattern2"],
-"recommendation": "include suggestion about possible lien or hold if needed"
-}
-
-DO NOT return text outside JSON.
-`;
+  const prompt = buildAnalysisPrompt(transactions);
 
   const modelCandidates = getModelCandidates();
   let lastError;
@@ -72,15 +115,7 @@ DO NOT return text outside JSON.
 
       console.log('Raw Gemini response:', raw);
 
-      // Extract JSON object from mixed model output.
-      const match = raw.match(/\{[\s\S]*\}/);
-
-      if (!match) {
-        console.error('No JSON found in response');
-        throw new Error('Invalid AI response format');
-      }
-
-      const jsonString = match[0];
+      const jsonString = extractJson(raw);
 
       try {
         return JSON.parse(jsonString);
@@ -96,10 +131,43 @@ DO NOT return text outside JSON.
 
   console.error('All Gemini models failed:', lastError?.message || 'Unknown error');
   return {
-    riskScore: 0,
     summary: 'AI response parsing failed',
-    suspiciousTransactions: [],
     patterns: [],
-    recommendation: 'Unable to analyze',
+    recommendations: ['Unable to analyze with Gemini at this time.'],
+    suspiciousTransactions: [],
+  };
+}
+
+export async function generateChatResponse({ analysis, message }) {
+  if (!process.env.GEMINI_API_KEY) {
+    return {
+      reply: analysis?.summary || 'Analysis is available, but Gemini is not configured in this environment.',
+      highlights: analysis?.patterns?.slice(0, 3) || [],
+      nextSteps: [analysis?.recommendation || 'Review the current risk summary.'],
+    };
+  }
+
+  const genAI = getClient();
+  const prompt = buildChatPrompt({ analysis, message });
+  const modelCandidates = getModelCandidates();
+  let lastError;
+
+  for (const modelName of modelCandidates) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      const raw = await result.response.text();
+      const parsed = JSON.parse(extractJson(raw));
+      return parsed;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  return {
+    reply: analysis?.summary || 'Unable to generate a Gemini response right now.',
+    highlights: analysis?.patterns?.slice(0, 3) || [],
+    nextSteps: [analysis?.recommendation || 'Review the current risk summary.'],
+    error: lastError?.message,
   };
 }

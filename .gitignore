@@ -1,1 +1,35 @@
-/server/.env
+# Environment variables
+.env
+.env.local
+.env.*.local
+server/.env
+
+# Dependencies
+node_modules/
+dist/
+build/
+
+# Runtime
+uploads/
+server/uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+.turbo/
+.cache/
+

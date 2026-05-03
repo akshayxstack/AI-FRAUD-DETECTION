@@ -9,6 +9,7 @@ type DataContextValue = {
   error: string | null;
   lastAnalyzedAt: Date | null;
   refresh: () => Promise<void>;
+  clear: () => void;
 };
 
 const DataContext = createContext<DataContextValue | undefined>(undefined);
@@ -44,13 +45,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const clear = useCallback(() => {
+    setAnalysis(null);
+    setTotalTransactions(0);
+    setSuspiciousTransactionsCount(0);
+    setError(null);
+    setLastAnalyzedAt(null);
+  }, []);
+
   useEffect(() => {
     refresh();
   }, [refresh]);
 
   const value = useMemo(
-    () => ({ analysis, totalTransactions, suspiciousTransactionsCount, loading, error, lastAnalyzedAt, refresh }),
-    [analysis, totalTransactions, suspiciousTransactionsCount, loading, error, lastAnalyzedAt, refresh]
+    () => ({ analysis, totalTransactions, suspiciousTransactionsCount, loading, error, lastAnalyzedAt, refresh, clear }),
+    [analysis, totalTransactions, suspiciousTransactionsCount, loading, error, lastAnalyzedAt, refresh, clear]
   );
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

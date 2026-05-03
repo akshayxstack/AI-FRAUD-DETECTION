@@ -26,6 +26,7 @@ export async function parsePDF(filePath) {
       date,
       description,
       amount: normalizeAmount(amount),
+      raw: { line },
     });
   }
 
